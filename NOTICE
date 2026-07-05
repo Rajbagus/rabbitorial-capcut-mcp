@@ -1,0 +1,25 @@
+CapCut MCP
+Copyright 2026 rajbagus
+
+This product is a modified redistribution of the CapCutAPI project
+(https://github.com/sun-guannan/CapCutAPI), which is licensed under the
+Apache License, Version 2.0. A copy of the Apache License is included in the
+LICENSE file. The bundled pyJianYingDraft library and CapCut/JianYing draft
+templates originate from that upstream project.
+
+Modifications made in this redistribution include:
+
+- Disabled remote "phone-home" behavior to keep the tool fully local:
+  * removed a call to a remote draft-retrieval cloud function endpoint, and
+  * changed the default draft domain from a remote host to localhost.
+- Added a safe, additive draft-editing module (edit_existing_impl.py) that
+  loads an existing draft as a copy and applies changes without mutating the
+  original.
+- Removed material not needed for local MCP editing: demonstration/example
+  scripts, third-party integration samples, and a bundled third-party skill.
+- Removed local configuration and virtual-environment files.
+- Neutralized author-specific filesystem paths in bundled templates.
+
+"CapCut" and "剪映/JianYing" are trademarks of their respective owners. This
+project is not affiliated with, endorsed by, or sponsored by ByteData/CapCut or
+the upstream project's authors.
