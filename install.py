@@ -115,6 +115,33 @@ def smoke_test():
     log(f"Server imports cleanly; {r.stdout.strip()} tools available")
 
 
+def _register_via_config(draft_folder):
+    """Fallback registration for when the `claude` CLI isn't on PATH
+    (e.g. the VS Code extension): write the server straight into
+    ~/.claude.json, the same file the CLI would update. Returns True on success."""
+    cfg = Path.home() / ".claude.json"
+    entry = {
+        "type": "stdio",
+        "command": str(venv_python()),
+        "args": [str(REPO / "mcp_server.py")],
+        "env": {"CAPCUT_DRAFT_FOLDER": draft_folder} if draft_folder else {},
+    }
+    data = {}
+    if cfg.exists():
+        try:
+            data = json.loads(cfg.read_text(encoding="utf-8"))
+        except Exception:
+            return False
+        backup = cfg.with_name(".claude.json.capcut-backup")
+        if not backup.exists():
+            backup.write_text(cfg.read_text(encoding="utf-8"), encoding="utf-8")
+    if not isinstance(data.get("mcpServers"), dict):
+        data["mcpServers"] = {}
+    data["mcpServers"]["capcut"] = entry  # replaces any existing entry
+    cfg.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
+    return True
+
+
 def register(draft_folder):
     py = str(venv_python())
     server = str(REPO / "mcp_server.py")
@@ -125,8 +152,7 @@ def register(draft_folder):
     printable = " ".join(f'"{c}"' if " " in c else c for c in cmd)
 
     if shutil.which("claude"):
-        # Idempotent: if a 'capcut' server is already registered, replace it so
-        # re-running this installer (or pointing it at a fresh checkout) is clean.
+        # Idempotent: replace any existing 'capcut' registration first.
         if subprocess.run(["claude", "mcp", "get", "capcut"],
                           capture_output=True, text=True).returncode == 0:
             log("Found an existing 'capcut' registration - replacing it.")
@@ -134,14 +160,18 @@ def register(draft_folder):
                 subprocess.run(["claude", "mcp", "remove", "capcut", "--scope", _scope],
                                capture_output=True)
             subprocess.run(["claude", "mcp", "remove", "capcut"], capture_output=True)
-        log("Registering with Claude Code ...")
+        log("Registering with Claude Code (CLI) ...")
         if subprocess.run(cmd).returncode == 0:
             log("Registered as MCP server 'capcut'. Restart Claude Code to load it.")
             return
-        log("Automatic registration failed. Register manually with:")
+        log("CLI registration failed; using the config file instead ...")
+
+    # No `claude` CLI (e.g. the VS Code extension) -> write ~/.claude.json directly.
+    if _register_via_config(draft_folder):
+        log("Registered 'capcut' in ~/.claude.json. Restart Claude Code / your editor to load it.")
     else:
-        log("`claude` CLI not found on PATH. Register manually with:")
-    print("\n  " + printable + "\n")
+        log("Could not auto-register. Add this MCP server manually:")
+        print("\n  " + printable + "\n")
 
 
 def main():
