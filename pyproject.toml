@@ -40,8 +40,7 @@ mcp = [
     "jsonrpc-async>=2.1.0",
 ]
 
-# Fill these in with your own repository URL before publishing.
 [project.urls]
-Homepage = "https://github.com/OWNER/REPO"
-Repository = "https://github.com/OWNER/REPO.git"
-Issues = "https://github.com/OWNER/REPO/issues"
+Homepage = "https://github.com/Rajbagus/rabbitorial-capcut-mcp"
+Repository = "https://github.com/Rajbagus/rabbitorial-capcut-mcp.git"
+Issues = "https://github.com/Rajbagus/rabbitorial-capcut-mcp/issues"
