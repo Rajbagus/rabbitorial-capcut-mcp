@@ -17,6 +17,7 @@ Exposed helpers:
 """
 
 import os
+import platform
 import time
 import json
 import uuid
@@ -30,11 +31,22 @@ from draft_profiles import get_draft_profile
 LOADED_DRAFTS = {}
 
 
-def _default_folder():
-    return os.path.join(
-        os.environ.get("LOCALAPPDATA", ""),
-        "CapCut", "User Data", "Projects", "com.lveditor.draft",
-    )
+def default_draft_folder():
+    """CAPCUT_DRAFT_FOLDER if set, otherwise CapCut's standard Projects folder for this OS."""
+    configured = os.environ.get("CAPCUT_DRAFT_FOLDER", "").strip()
+    if configured:
+        return os.path.expanduser(configured)
+    if platform.system() == "Darwin":
+        base = os.path.join(os.path.expanduser("~"), "Movies")
+    else:
+        base = os.environ.get("LOCALAPPDATA") or os.path.join(os.path.expanduser("~"), "AppData", "Local")
+    return os.path.join(base, "CapCut", "User Data", "Projects", "com.lveditor.draft")
+
+
+def _is_plain_folder_name(name):
+    """True if name refers to exactly one child folder (no '', '.', '..', or separators)."""
+    return (isinstance(name, str) and name not in ("", ".", "..")
+            and "/" not in name and os.sep not in name)
 
 
 def is_loaded_draft(draft_id):
@@ -47,7 +59,7 @@ def is_loaded_draft(draft_id):
 
 def list_existing_drafts(draft_folder=None):
     """List the projects currently in the CapCut Projects folder."""
-    draft_folder = draft_folder or _default_folder()
+    draft_folder = draft_folder or default_draft_folder()
     if not os.path.isdir(draft_folder):
         return {"success": False, "error": f"Draft folder not found: {draft_folder}"}
     profile = get_draft_profile()
@@ -119,7 +131,9 @@ def load_existing_draft(draft_id, draft_folder=None, new_name=None):
     :param new_name: name for the working copy (defaults to '<original> (AI edit)').
     :return: dict with the NEW draft_id to use for subsequent add_* / save_draft calls.
     """
-    draft_folder = draft_folder or _default_folder()
+    if not _is_plain_folder_name(draft_id):
+        return {"success": False, "error": f"Invalid draft_id: {draft_id!r}. Use a folder name from list_drafts."}
+    draft_folder = draft_folder or default_draft_folder()
     src = os.path.join(draft_folder, draft_id)
     if not os.path.isdir(src):
         return {"success": False, "error": f"Project '{draft_id}' not found in {draft_folder}"}

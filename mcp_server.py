@@ -32,20 +32,12 @@ try:
     from pyJianYingDraft.text_segment import TextStyleRange
     from edit_existing_impl import (
         list_existing_drafts, load_existing_draft, save_loaded_draft, is_loaded_draft,
+        default_draft_folder,
     )
     CAPCUT_AVAILABLE = True
 except ImportError as e:
     print(f"Warning: Could not import CapCut modules: {e}", file=sys.stderr)
     CAPCUT_AVAILABLE = False
-
-# Default output folder for saved drafts. Saving here makes drafts appear
-# directly inside the CapCut desktop app. Override with the CAPCUT_DRAFT_FOLDER
-# environment variable. Falls back to the standard Windows CapCut location.
-CAPCUT_DRAFT_FOLDER = os.environ.get(
-    "CAPCUT_DRAFT_FOLDER",
-    os.path.join(os.environ.get("LOCALAPPDATA", ""),
-                 "CapCut", "User Data", "Projects", "com.lveditor.draft"),
-)
 
 # 完整的工具定义
 TOOLS = [
@@ -382,13 +374,17 @@ def execute_tool(tool_name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
                 
             elif tool_name == "list_drafts":
                 result = list_existing_drafts(arguments.get("draft_folder"))
+                if not result.get("success"):
+                    return result
 
             elif tool_name == "load_draft":
                 result = load_existing_draft(
-                    arguments["draft_id"],
+                    arguments.get("draft_id"),
                     draft_folder=arguments.get("draft_folder"),
                     new_name=arguments.get("new_name"),
                 )
+                if not result.get("success"):
+                    return result
 
             elif tool_name == "save_draft":
                 # If this is a draft we loaded from an existing project, save the
@@ -398,12 +394,12 @@ def execute_tool(tool_name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
                     result = save_loaded_draft(arguments["draft_id"])
                 else:
                     if "draft_folder" not in arguments or not arguments.get("draft_folder"):
-                        arguments["draft_folder"] = CAPCUT_DRAFT_FOLDER
+                        # CAPCUT_DRAFT_FOLDER if set, else CapCut's standard folder for this OS.
+                        arguments["draft_folder"] = default_draft_folder()
                     save_result = save_draft_impl(**arguments)
-                    if isinstance(save_result, dict) and "draft_url" in save_result:
-                        result = {"draft_url": save_result["draft_url"], "saved_to": os.path.join(arguments["draft_folder"], arguments.get("draft_id", ""))}
-                    else:
-                        result = {"draft_url": f"http://localhost:9001/draft/downloader?draft_id=unknown"}
+                    if not save_result.get("success"):
+                        return {"success": False, "error": save_result.get("error", "Save failed")}
+                    result = {"draft_url": save_result["draft_url"], "saved_to": save_result["saved_to"]}
                 
             else:
                 return {"success": False, "error": f"Unknown tool: {tool_name}"}

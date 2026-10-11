@@ -78,10 +78,9 @@ def save_draft_background(draft_id, draft_folder, task_id):
         output_base_dir = draft_folder or current_dir
         draft_dir = os.path.join(output_base_dir, draft_id)
 
-        # Delete possibly existing draft_id folder in the target output location.
-        if os.path.exists(draft_dir):
-            logger.warning(f"Deleting existing draft folder: {draft_dir}")
-            shutil.rmtree(draft_dir)
+        # Never delete or overwrite an existing folder at the destination.
+        if os.path.lexists(draft_dir):
+            raise FileExistsError(f"Destination already exists, refusing to overwrite: {draft_dir}")
 
         # Choose different template directory based on configuration
         draft_profile = get_draft_profile()
@@ -260,16 +259,31 @@ def query_task_status(task_id: str):
 def save_draft_impl(draft_id: str, draft_folder: str = None) -> Dict[str, str]:
     """Start a background task to save the draft"""
     logger.info(f"Received save draft request: draft_id={draft_id}, draft_folder={draft_folder}")
+    # Reject ids that would resolve outside a single child folder (e.g. "", "..", "a/b").
+    if not draft_id or draft_id in (".", "..") or os.path.basename(draft_id) != draft_id or os.sep in draft_id:
+        return {"success": False, "error": f"Invalid draft_id: {draft_id!r}"}
+
+    output_base_dir = draft_folder or os.path.dirname(os.path.abspath(__file__))
+    draft_dir = os.path.join(output_base_dir, draft_id)
+    if os.path.lexists(draft_dir):
+        logger.error(f"Refusing to save draft {draft_id}: destination already exists: {draft_dir}")
+        return {"success": False, "error": f"Destination already exists, refusing to overwrite: {draft_dir}"}
+
     try:
         # Generate a unique task ID
         task_id = draft_id
         create_task(task_id)
         logger.info(f"Task {task_id} has been created.")
-        
+
         # Changed to synchronous execution
+        draft_url = save_draft_background(draft_id, draft_folder, task_id)
+        task = get_task_status(task_id)
+        if task.get("status") != "completed":
+            return {"success": False, "error": task.get("message", "Save failed")}
         return {
             "success": True,
-            "draft_url": save_draft_background(draft_id, draft_folder, task_id)
+            "draft_url": draft_url,
+            "saved_to": draft_dir,
             }
 
         # # Start a background thread to execute the task
